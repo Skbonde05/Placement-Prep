@@ -1,25 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, Topic } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
+import SearchBar from './SearchBar';
+
 
 export default function Topics() {
   const { user } = useAuth();
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    category: 'Technical',
-    total_hours: 10,
-    completed_hours: 0,
-    status: 'Not Started',
-    priority: 'Medium',
-    notes: '',
-  });
 
   useEffect(() => {
     if (user) loadTopics();
@@ -35,55 +32,29 @@ export default function Topics() {
     if (data) setTopics(data);
   };
 
-  const filteredTopics = topics.filter((topic) =>
-    topic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    topic.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  /* 🔍 SEARCH FILTER */
+  const filteredTopics = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return topics;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (editingTopic) {
-      await supabase
-        .from('topics')
-        .update({ ...formData, updated_at: new Date().toISOString() })
-        .eq('id', editingTopic.id);
-    } else {
-      await supabase.from('topics').insert({
-        ...formData,
-        user_id: user?.id,
-      });
-    }
-
-    setShowModal(false);
-    setEditingTopic(null);
-    resetForm();
-    loadTopics();
-  };
-
-  const handleEdit = (topic: Topic) => {
-    setEditingTopic(topic);
-    setFormData({ ...topic });
-    setShowModal(true);
-  };
+    return topics.filter((topic) =>
+      [
+        topic.name,
+        topic.category,
+        topic.status,
+        topic.priority,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [topics, searchQuery]);
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this topic?')) {
       await supabase.from('topics').delete().eq('id', id);
       loadTopics();
     }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      category: 'Technical',
-      total_hours: 10,
-      completed_hours: 0,
-      status: 'Not Started',
-      priority: 'Medium',
-      notes: '',
-    });
   };
 
   const getStatusColor = (status: string) =>
@@ -120,12 +91,9 @@ export default function Topics() {
           </p>
         </div>
 
+        {/* Placeholder Add Topic Button */}
         <button
-          onClick={() => {
-            setEditingTopic(null);
-            resetForm();
-            setShowModal(true);
-          }}
+          onClick={() => alert('Add Topic modal not implemented yet')}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" />
@@ -133,21 +101,22 @@ export default function Topics() {
         </button>
       </div>
 
-      {/* ✅ SEARCH BAR */}
-      <input
-        type="text"
-        placeholder="Search topics..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        className="w-full md:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-      />
+      {/* 🔍 Search Bar */}
+      <SearchBar
+  value={searchQuery}
+  onChange={setSearchQuery}
+  placeholder="Search topics, category, status, priority..."
+/>
+
 
       {/* Topics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredTopics.map((topic) => {
           const progress =
             topic.total_hours > 0
-              ? Math.round((topic.completed_hours / topic.total_hours) * 100)
+              ? Math.round(
+                  (topic.completed_hours / topic.total_hours) * 100
+                )
               : 0;
 
           return (
@@ -158,20 +127,28 @@ export default function Topics() {
               <div className="flex justify-between mb-4">
                 <h3 className="text-lg font-semibold">{topic.name}</h3>
                 <div className="flex gap-2">
-                  <button onClick={() => handleEdit(topic)}>
-                    <Edit2 className="w-4 h-4" />
+                  <button title="Edit (not implemented)">
+                    <Edit2 className="w-4 h-4 text-gray-400" />
                   </button>
                   <button onClick={() => handleDelete(topic.id)}>
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4 text-red-500" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex gap-2 mb-3">
-                <span className={`px-2 py-1 text-xs rounded ${getStatusColor(topic.status)}`}>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <span
+                  className={`px-2 py-1 text-xs rounded ${getStatusColor(
+                    topic.status
+                  )}`}
+                >
                   {getStatusIcon(topic.status)} {topic.status}
                 </span>
-                <span className={`px-2 py-1 text-xs rounded ${getPriorityColor(topic.priority)}`}>
+                <span
+                  className={`px-2 py-1 text-xs rounded ${getPriorityColor(
+                    topic.priority
+                  )}`}
+                >
                   {topic.priority}
                 </span>
                 <span className="px-2 py-1 text-xs rounded bg-cyan-100 text-cyan-700">
@@ -193,14 +170,12 @@ export default function Topics() {
           );
         })}
 
-        {/* No search results */}
         {topics.length > 0 && filteredTopics.length === 0 && (
           <div className="col-span-2 text-center py-10 text-gray-500">
             No matching topics found
           </div>
         )}
 
-        {/* No topics at all */}
         {topics.length === 0 && (
           <div className="col-span-2 text-center py-10 text-gray-400">
             No topics yet. Click “Add Topic” to get started.
